@@ -6,8 +6,8 @@ import rasterio
 
 
 def main():
-    input_path = Path("output/ndvi.tif")
-    output_dir = Path("output")
+    input_path = Path("outputs/ndvi.tif")
+    output_dir = Path("outputs")
     output_path = output_dir / "ndvi_preview.png"
 
     if not input_path.exists():
