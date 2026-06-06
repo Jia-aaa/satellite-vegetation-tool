@@ -3,3 +3,6 @@ outputs/*
 checks/*
 __pycache__/
 *.pyc
+output/
+__pycache__/
+*.pyc
