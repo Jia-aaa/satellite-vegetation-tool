@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "satellite-vegetation-tool"
+version = "0.1.0"
+description = "NDVI vegetation analysis command line tool."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "rasterio",
+    "matplotlib",
+    "pillow"
+]
+
+[project.scripts]
+satveg = "run_pipeline:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = [
+    "run_pipeline",
+    "calculate_ndvi",
+    "visualize_ndvi",
+    "check_outputs"
+]
