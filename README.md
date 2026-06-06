@@ -1,50 +1,17 @@
-\# Satellite Vegetation Tool
+# 卫星植被指数计算工具
 
+本项目用于从卫星 GeoTIFF 影像中计算 NDVI，并生成植被掩膜文件。
 
+## 项目说明
 
-一个用于处理卫星影像并计算 NDVI（归一化植被指数）的 Python 小工具。
+本工具读取一个双波段卫星影像文件：
 
+- 第 1 波段：红光波段 Red
+- 第 2 波段：近红外波段 NIR
 
+程序会读取影像元数据中的比例因子和偏移量，对原始 DN 值进行反射率转换，然后计算 NDVI，生成植被分类掩膜，并输出统计结果。
 
-\## 功能
-
-
-
-目前支持：
-
-
-
-\- 读取红光波段和近红外波段影像
-
-\- 计算 NDVI
-
-\- 输出 NDVI GeoTIFF 文件
-
-\- 生成 NDVI 彩色预览图 PNG
-
-
-
-\## 项目结构
-
-
+NDVI 计算公式为：
 
 ```text
-
-satellite-vegetation-tool/
-
-├── data/                  # 输入影像数据
-
-├── output/                # 输出结果，不提交到 Git
-
-├── src/
-
-│   ├── calculate\_ndvi.py  # 计算 NDVI
-
-│   └── visualize\_ndvi.py  # 生成 NDVI 预览图
-
-├── requirements.txt       # Python 依赖
-
-├── .gitignore
-
-└── README.md
-
+NDVI = (NIR - Red) / (NIR + Red)
