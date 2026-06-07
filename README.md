@@ -2,6 +2,30 @@
 
 从一景双波段卫星 GeoTIFF 影像计算 NDVI、生成植被掩膜与统计信息的命令行工具。
 
+---
+
+## 📦 交付清单（任务一第 3 节 + 第 5 节）
+
+> 任务原文（第 3 节）："工具最终需要输出三个文件：`outputs/ndvi.tif` / `outputs/vegetation_mask.tif` / `outputs/stats.json`。"
+> 任务原文（第 5 节验收）：手算像素对拍、NDVI ∈ [-1, 1]、nodata 不参与计算、输出与输入地理对齐、QGIS 叠图合理。
+
+| # | 任务要的东西 | 在仓库里的位置 |
+|---|---|---|
+| 1 | **`outputs/ndvi.tif`** —— NDVI 结果图 | 由 `satveg` 生成；规格见 [`SPEC.md`](SPEC.md) |
+| 2 | **`outputs/vegetation_mask.tif`** —— 植被掩膜 | 由 `satveg` 生成；阈值 `NDVI ≥ 0.3`（`src/calculate_ndvi.py`） |
+| 3 | **`outputs/stats.json`** —— 统计结果 | 由 `satveg` 生成；含像素计数 / NDVI min/max/mean/std / 植被比例 |
+| 4 | **工具代码** | [`src/`](src/) —— 入口 `src/run_pipeline.py`（`satveg` 命令） |
+| 5 | **规格** | [`SPEC.md`](SPEC.md) |
+| 6 | **验收报告**（5 条验收标准的逐项证明） | [`VALIDATION.md`](VALIDATION.md) + [`checks/`](checks/) 三个独立脚本 |
+
+补充材料：
+
+- `outputs/ndvi_preview.png` —— NDVI 彩色预览图（方便不开 GIS 也能直观看）
+- [`checks/manual_pixel_check.py`](checks/manual_pixel_check.py) —— 任务第 5.1 条"手算像素对拍"的实证脚本
+- [`checks/validate_ndvi.py`](checks/validate_ndvi.py) —— 独立重读 NDVI，验证 [-1, 1] 与地理参考
+
+---
+
 ## 功能
 
 输入 `data/input.tif`（双波段，Band 1 = Red，Band 2 = NIR），输出到 `outputs/`：
