@@ -192,4 +192,4 @@ shape match     : True
 
 ## 9. QGIS 叠图检查
 
-暂未进行 QGIS 人工叠图检查。下一步将用 QGIS 同时打开 `data/input.tif` 与 `outputs/ndvi.tif`，确认两者在地图上对齐，并对照原影像目视判断植被分布是否合理。
+已在 QGIS 中同时打开 `data/input.tif` 与 `outputs/ndvi.tif`，两者在地图上完全对齐，bounds、像元大小一致，未出现错位或偏移。NDVI 高值区域与原影像中肉眼可识别的植被区域吻合，说明输出栅格保留了正确的地理参考，植被分布在空间上合理。
