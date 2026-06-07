@@ -1,4 +1,5 @@
 data/*.tif
+data/*.aux.xml
 outputs/*
 __pycache__/
 *.pyc

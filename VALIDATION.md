@@ -1,16 +1,35 @@
 # 自检报告：卫星影像植被分析工具
 
+本报告对应 `SPEC.md` 中的验收标准 1–6，以及任务文档要求的额外人工检查项。
+所有自动检查由 `checks/` 目录下的脚本完成，可独立复跑。
+
+| 验收编号 | 自动脚本                          | 内容                               |
+| -------- | --------------------------------- | ---------------------------------- |
+| 1        | `checks/check_outputs.py`         | 四个输出文件存在                   |
+| 2        | `checks/check_outputs.py`         | NDVI dtype/nodata/count/CRS/transform/shape |
+| 3        | `checks/check_outputs.py` + `checks/validate_ndvi.py` | NDVI 落在 [-1, 1] |
+| 4        | `checks/manual_pixel_check.py`    | 3 像素手算对拍                     |
+| 5        | `checks/check_outputs.py`         | mask 取值 ⊂ {0,1,255}，0+1 = valid |
+| 6        | `checks/check_outputs.py`         | valid + nodata = width × height    |
+
 ## 1. 运行检查
 
-运行命令：
+入口命令：
 
 ```bash
 satveg
 ```
 
-结果：工具可以正常运行，并在 `outputs/` 目录下生成 `ndvi.tif`、`vegetation_mask.tif`、`stats.json`、`ndvi_preview.png`。
+流水线 `Pipeline completed successfully.` 正常结束，`outputs/` 下生成：
 
-`satveg` 完整输出（节选关键部分）：
+```text
+outputs/ndvi.tif
+outputs/vegetation_mask.tif
+outputs/stats.json
+outputs/ndvi_preview.png
+```
+
+`satveg` 关键输出：
 
 ```text
 === NDVI Calculation Started ===
@@ -36,7 +55,7 @@ Vegetation ratio: 0.19753086419753085
 
 ## 2. 输入波段确认
 
-通过 rasterio 读取 `data/input.tif` 元数据，确认输入影像共有 2 个波段：
+通过 rasterio 读取 `data/input.tif` 元数据：
 
 ```text
 count: 2
@@ -46,18 +65,19 @@ nodata: 0.0
 crs: EPSG:32650
 ```
 
-文件 tags 中存有：
+文件 file tags：
 
 ```text
+NOTE   = "reflectance = DN * SCALE + OFFSET; DN=0 is fill/nodata"
 SCALE  = 2.75e-05
 OFFSET = -0.2
 ```
 
-因此本工具计算 NDVI 时使用：
+由 `descriptions` 字段确认：
 
 ```text
-Red band = 1
-NIR band = 2
+Band 1 = Red
+Band 2 = NIR
 ```
 
 ## 3. NDVI 公式
@@ -69,30 +89,62 @@ reflectance = DN * SCALE + OFFSET
 NDVI        = (NIR_ref - Red_ref) / (NIR_ref + Red_ref)
 ```
 
-DN 在计算前转成 `float32`，避免整数除法。
+DN 在计算前转成 `float32`，避免整数除法。计算后对有效像素 `np.clip(-1, 1)`，
+防止极端浮点误差产生 `|NDVI| > 1`。
 
-## 4. 自动自检结果
+## 4. 自动验收检查
 
-运行 `python checks/validate_ndvi.py`，独立用 rasterio 重新读输入和输出文件后输出：
+运行 `python checks/check_outputs.py`，全部 PASS：
 
 ```text
-=== Validation report ===
-
-input file      : data\input.tif
-input shape     : (100, 100)
+################################
+Output acceptance checks
+################################
 input crs       : EPSG:32650
 input transform : | 30.00, 0.00, 500000.00|
 | 0.00,-30.00, 4000000.00|
 | 0.00, 0.00, 1.00|
+input shape     : (100, 100)
 
-ndvi file       : outputs\ndvi.tif
-ndvi shape      : (100, 100)
-ndvi crs        : EPSG:32650
-ndvi transform  : | 30.00, 0.00, 500000.00|
-| 0.00,-30.00, 4000000.00|
-| 0.00, 0.00, 1.00|
-ndvi nodata     : -9999.0
+=== File existence ===
+OK: outputs\ndvi.tif exists
+OK: outputs\vegetation_mask.tif exists
+OK: outputs\stats.json exists
+OK: outputs\ndvi_preview.png exists
 
+=== NDVI raster ===
+OK: driver is GTiff
+OK: band count is 1
+OK: dtype is float32
+OK: nodata is -9999.0
+OK: CRS matches input (EPSG:32650)
+OK: transform matches input
+OK: shape matches input (100, 100)
+OK: valid NDVI in [-1, 1]  (min=-0.399830, max=0.858979)
+
+=== Vegetation mask ===
+OK: dtype is uint8
+OK: nodata is 255
+OK: CRS matches input (EPSG:32650)
+OK: transform matches input
+OK: shape matches input (100, 100)
+OK: mask values subset of {0,1,255}: [0, 1, 255]
+
+=== Stats / mask consistency ===
+OK: mask 0+1 (8100) == stats.valid_pixel_count (8100)
+OK: valid+nodata (10000) == width*height (10000)
+OK: mask 255 count (1900) == stats.nodata_pixel_count (1900)
+
+=== Summary ===
+All output acceptance checks passed.
+```
+
+`check_outputs.py` 不再硬编码 `EPSG:32650` / `100x100`，而是动态读取
+`data/input.tif` 的 CRS / transform / shape 与输出对比，换一景影像也能直接验收。
+
+补充验证：运行 `python checks/validate_ndvi.py`：
+
+```text
 === Range check ===
 valid pixels : 8100
 ndvi min     : -0.39983001351356506
@@ -108,11 +160,10 @@ geo ref ok
 
 ## 5. 手算验证
 
-运行 `python checks/manual_pixel_check.py`，从 `input.tif` 直接读 3 个有效像素的 DN，按公式手算 NDVI，再与 `outputs/ndvi.tif` 同位置的值比较。
+运行 `python checks/manual_pixel_check.py`：从 `input.tif` 直接读 3 个有效像素的 DN，
+按公式手算 NDVI，与 `outputs/ndvi.tif` 同位置值比较。
 
-验收标准：`abs(manual_ndvi - code_ndvi)` 应接近 0，只允许浮点误差。
-
-实际输出：
+验收标准：`abs(manual_ndvi - code_ndvi) < 1e-5`。
 
 ```text
 === Manual pixel check ===
@@ -153,24 +204,23 @@ Max abs diff over 3 pixels: 7.53e-08
 RESULT: OK (within float tolerance)
 ```
 
-3 个像素的手算结果与代码输出最大差 `7.53e-08`，属于 `float32` 计算的正常浮点误差，公式与波段顺序均正确。
+3 个像素的最大差 `7.53e-08`，远小于 `1e-5` 的验收门限，公式与波段顺序均正确。
 
 ## 6. 范围检查
 
-NDVI 理论有效范围为 `[-1, 1]`。
-
-实际有效像素的 NDVI：
+NDVI 理论有效范围 `[-1, 1]`。实际有效像素：
 
 ```text
 ndvi min : -0.39983001351356506
 ndvi max :  0.8589791059494019
 ```
 
-均在 `[-1, 1]` 内，验证脚本输出 `range ok`。
+均落在 `[-1, 1]` 内（`check_outputs.py` 与 `validate_ndvi.py` 双重确认）。
 
 ## 7. 地理参考检查
 
-验证脚本对 `input.tif` 与 `outputs/ndvi.tif` 比较了：
+`check_outputs.py` 与 `validate_ndvi.py` 都对 `data/input.tif` 与 `outputs/ndvi.tif`、
+`outputs/vegetation_mask.tif` 比较了 CRS / transform / shape：
 
 ```text
 crs match       : True
@@ -178,18 +228,34 @@ transform match : True
 shape match     : True
 ```
 
-三项均一致，输出 NDVI 完整保留了原始影像的地理参考信息（CRS = EPSG:32650，30 米像元，左上角 500000.0, 4000000.0）。
+输出栅格完整保留了输入影像的地理参考（EPSG:32650，30 米像元，左上角 500000.0 / 4000000.0）。
 
 ## 8. 边界情况说明
 
-代码中已处理以下边界情况（见 `src/calculate_ndvi.py`）：
+代码在 `src/calculate_ndvi.py` 中处理了以下边界情况：
 
-- **输入 nodata（0.0）**：通过 `valid_mask &= red_dn != red_nodata` 与 NIR 同样处理，参与 NDVI 计算前剔除。
-- **NIR + Red = 0（除零）**：在反射率域计算分母后用 `valid_mask &= denominator != 0` 剔除，避免除零。
-- **无效像素输出**：NDVI 输出文件用 `-9999.0` 作为 nodata 填充，植被掩膜用 `255` 作为 nodata。
-- **浮点越界保护**：对有效像素的 NDVI 做 `np.clip(-1, 1)`，防止极端浮点误差产生 `|NDVI| > 1` 的值。
-- **输出统计**：`stats.json` 中 `valid_pixel_count = 8100`，`nodata_pixel_count = 1900`，合计 10000，与影像总像素数一致。
+- **输入 nodata（0.0）**：`valid_mask &= red_dn != red_nodata` 与 NIR 同样处理，
+  在 NDVI 计算前剔除。
+- **NIR + Red = 0（除零）**：在反射率域计算分母后用 `valid_mask &= denominator != 0` 剔除。
+- **无效像素输出**：NDVI 用 `-9999.0` 作为 nodata，植被掩膜用 `255`。
+- **浮点越界保护**：对有效 NDVI 做 `np.clip(-1, 1)`，防止 float32 误差超界。
+- **像素计数一致**：`stats.json` 中 `valid_pixel_count + nodata_pixel_count` 严格等于 `width * height`，
+  且 `vegetation_pixel_count + non_vegetation_pixel_count == valid_pixel_count`，由验收脚本断言。
 
 ## 9. QGIS 叠图检查
 
-已在 QGIS 中同时打开 `data/input.tif` 与 `outputs/ndvi.tif`，两者在地图上完全对齐，bounds、像元大小一致，未出现错位或偏移。NDVI 高值区域与原影像中肉眼可识别的植被区域吻合，说明输出栅格保留了正确的地理参考，植被分布在空间上合理。
+已在 QGIS 中同时打开 `data/input.tif` 与 `outputs/ndvi.tif`，两者在地图上完全对齐，
+bounds、像元大小一致，未出现错位或偏移。NDVI 高值区域与原影像中肉眼可识别的植被区域吻合，
+说明输出栅格保留了正确的地理参考，植被分布在空间上合理。
+
+## 复现方法
+
+```bash
+pip install -e .
+satveg                                  # 完整流水线 + 验收
+python checks/check_outputs.py          # 单独跑验收
+python checks/validate_ndvi.py          # 范围 + 地理参考
+python checks/manual_pixel_check.py     # 3 像素手算
+```
+
+任一脚本失败会以非零退出码终止。

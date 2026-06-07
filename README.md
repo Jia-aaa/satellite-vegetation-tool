@@ -1,17 +1,85 @@
-# 卫星植被指数计算工具
+# 卫星影像植被分析工具
 
-本项目用于从卫星 GeoTIFF 影像中计算 NDVI，并生成植被掩膜文件。
+从一景双波段卫星 GeoTIFF 影像计算 NDVI、生成植被掩膜与统计信息的命令行工具。
 
-## 项目说明
+## 功能
 
-本工具读取一个双波段卫星影像文件：
+输入 `data/input.tif`（双波段，Band 1 = Red，Band 2 = NIR），输出到 `outputs/`：
 
-- 第 1 波段：红光波段 Red
-- 第 2 波段：近红外波段 NIR
+| 文件                          | 内容                                                | 类型 / nodata        |
+| ----------------------------- | --------------------------------------------------- | -------------------- |
+| `outputs/ndvi.tif`            | NDVI 栅格                                           | float32 / `-9999.0`  |
+| `outputs/vegetation_mask.tif` | 植被掩膜：1 = 植被，0 = 非植被，255 = nodata        | uint8 / `255`        |
+| `outputs/stats.json`          | 像素计数、NDVI min/max/mean/std、植被比例等统计     | JSON                 |
+| `outputs/ndvi_preview.png`    | NDVI 彩色预览图                                     | PNG                  |
 
-程序会读取影像元数据中的比例因子和偏移量，对原始 DN 值进行反射率转换，然后计算 NDVI，生成植被分类掩膜，并输出统计结果。
-
-NDVI 计算公式为：
+NDVI 计算流程：
 
 ```text
-NDVI = (NIR - Red) / (NIR + Red)
+reflectance = DN * SCALE + OFFSET   (SCALE/OFFSET 来自 input.tif 的 file tags)
+NDVI        = (NIR_ref - Red_ref) / (NIR_ref + Red_ref)
+DN = 0 视为 nodata，不参与计算
+NDVI ≥ 0.3 判为植被
+```
+
+输出栅格保留输入影像的 CRS、transform、shape，可在 GIS 中按地理坐标与原影像叠加。
+
+## 安装
+
+需要 Python 3.10 及以上。
+
+```bash
+pip install -e .
+```
+
+或者：
+
+```bash
+pip install -r requirements.txt
+```
+
+## 运行
+
+把待处理影像放在 `data/input.tif`，然后在项目根目录执行：
+
+```bash
+satveg
+```
+
+流水线依次执行：计算 NDVI 和植被掩膜 → 生成预览图 → 自动验收检查。任一步失败会以非零退出码终止，并打印失败原因。
+
+植被阈值默认为 `0.3`，定义在 `src/calculate_ndvi.py` 的 `VEGETATION_THRESHOLD`。如需调整改这个常量即可。
+
+## 验证
+
+`checks/` 目录下有三个独立验证脚本，可单独运行：
+
+```bash
+python checks/check_outputs.py        # 输出元数据 / 范围 / mask & stats 一致性
+python checks/validate_ndvi.py        # 独立重读 NDVI 文件，做范围 + 地理参考检查
+python checks/manual_pixel_check.py   # 任取 3 个有效像素手算对拍
+```
+
+完整的自检结果记录在 [`VALIDATION.md`](VALIDATION.md)。规格说明见 [`SPEC.md`](SPEC.md)。
+
+## 项目结构
+
+```
+satellite-vegetation-tool/
+├── SPEC.md                          规格
+├── VALIDATION.md                    自检报告
+├── README.md
+├── pyproject.toml                   暴露 satveg 命令
+├── requirements.txt
+├── data/input.tif                   输入影像（不入库）
+├── outputs/                         运行产物（不入库）
+├── src/
+│   ├── run_pipeline.py              satveg 入口
+│   ├── calculate_ndvi.py            NDVI / 掩膜 / 统计
+│   ├── visualize_ndvi.py            预览图
+│   └── check_raster_info.py         辅助：打印输入元数据
+└── checks/
+    ├── check_outputs.py             输出验收（被 satveg 调用）
+    ├── validate_ndvi.py             独立对拍：范围 + 地理参考
+    └── manual_pixel_check.py        独立对拍：3 像素手算
+```

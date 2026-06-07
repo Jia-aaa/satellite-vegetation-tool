@@ -47,9 +47,12 @@ def main():
     print(f"Input: {input_path}")
     print(f"Output: {output_path}")
     print(f"Valid pixels: {valid_ndvi.size}")
-    print(f"NDVI min: {valid_ndvi.min()}")
-    print(f"NDVI max: {valid_ndvi.max()}")
-    print(f"NDVI mean: {valid_ndvi.mean()}")
+    if valid_ndvi.size > 0:
+        print(f"NDVI min: {valid_ndvi.min()}")
+        print(f"NDVI max: {valid_ndvi.max()}")
+        print(f"NDVI mean: {valid_ndvi.mean()}")
+    else:
+        print("No valid NDVI pixels.")
 
 
 if __name__ == "__main__":

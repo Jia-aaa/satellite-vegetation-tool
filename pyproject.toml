@@ -23,6 +23,5 @@ package-dir = {"" = "src"}
 py-modules = [
     "run_pipeline",
     "calculate_ndvi",
-    "visualize_ndvi",
-    "check_outputs"
+    "visualize_ndvi"
 ]

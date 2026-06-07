@@ -1,38 +1,50 @@
 from pathlib import Path
-import subprocess
+import runpy
 import sys
+import traceback
 
 
-ROOT = Path(__file__).resolve().parents[1]
+REQUIRED_INPUT = Path("data/input.tif")
 
 
-def run_step(name, command):
+def run_step(name, func):
     print(f"\n=== {name} ===")
-    result = subprocess.run(command, cwd=ROOT)
-
-    if result.returncode != 0:
+    try:
+        func()
+    except SystemExit as e:
+        if e.code not in (None, 0):
+            print(f"\nFailed: {name} (exit code {e.code})")
+            sys.exit(e.code)
+    except Exception:
         print(f"\nFailed: {name}")
-        sys.exit(result.returncode)
-
+        traceback.print_exc()
+        sys.exit(1)
     print(f"Done: {name}")
 
 
 def main():
     print("Starting satellite vegetation pipeline...")
 
-    run_step(
-        "Calculate NDVI and vegetation mask",
-        [sys.executable, "src/calculate_ndvi.py"]
-    )
+    if not REQUIRED_INPUT.exists():
+        print(
+            f"ERROR: input file '{REQUIRED_INPUT}' not found.\n"
+            f"Please run satveg from the project root, where data/input.tif exists."
+        )
+        sys.exit(2)
 
-    run_step(
-        "Generate NDVI preview image",
-        [sys.executable, "src/visualize_ndvi.py"]
-    )
+    from calculate_ndvi import main as calc_main
+    from visualize_ndvi import main as vis_main
 
+    run_step("Calculate NDVI and vegetation mask", calc_main)
+    run_step("Generate NDVI preview image", vis_main)
+
+    check_path = Path("checks/check_outputs.py")
+    if not check_path.exists():
+        print(f"ERROR: {check_path} not found.")
+        sys.exit(2)
     run_step(
         "Check output files",
-        [sys.executable, "src/check_outputs.py"]
+        lambda: runpy.run_path(str(check_path), run_name="__main__"),
     )
 
     print("\nPipeline completed successfully.")
